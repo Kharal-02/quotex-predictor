@@ -18,20 +18,20 @@ symbol_map = {
 asset = st.selectbox("Select Asset", list(symbol_map.keys()))
 symbol = symbol_map[asset]
 
-# Download 1-minute interval data
+# Download data
 df = yf.download(tickers=symbol, period="2h", interval="1m")
-df.dropna(inplace=True)
 
-# Add indicators with try/except for safety
-try:
-    df["rsi"] = ta.momentum.RSIIndicator(close=df["Close"]).rsi()
-    df["ema20"] = ta.trend.EMAIndicator(close=df["Close"], window=20).ema_indicator()
-    df["ema50"] = ta.trend.EMAIndicator(close=df["Close"], window=50).ema_indicator()
-except Exception as e:
-    st.error(f"Indicator error: {e}")
+# ✅ Validate Data
+if df.empty or "Close" not in df.columns:
+    st.error("⚠️ Failed to fetch data. Please try again later or change asset.")
     st.stop()
 
 df.dropna(inplace=True)
+
+# Add indicators
+df["rsi"] = ta.momentum.RSIIndicator(df["Close"]).rsi()
+df["ema20"] = ta.trend.EMAIndicator(df["Close"], window=20).ema_indicator()
+df["ema50"] = ta.trend.EMAIndicator(df["Close"], window=50).ema_indicator()
 
 # Candle pattern logic
 def detect_pattern(row, prev_row):
@@ -41,12 +41,11 @@ def detect_pattern(row, prev_row):
         return "Bearish Engulfing"
     return "No Clear Pattern"
 
-# Prepare latest rows
+# Use last 2 candles
 latest = df.iloc[-1]
 previous = df.iloc[-2]
-
-# Indicators
 pattern = detect_pattern(latest, previous)
+
 rsi = latest["rsi"]
 ema_trend = "UP" if latest["ema20"] > latest["ema50"] else "DOWN"
 
@@ -58,7 +57,7 @@ elif pattern == "Bearish Engulfing" and rsi > 30 and ema_trend == "DOWN":
 else:
     prediction = "❔ NEXT Candle = NEUTRAL / UNCLEAR"
 
-# Display Results
+# Show Results
 st.subheader("📊 Analysis Result")
 st.write("**Asset:**", asset)
 st.write("**Last Candle Close:**", round(latest["Close"], 5))
